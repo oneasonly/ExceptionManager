@@ -68,7 +68,6 @@ namespace ExceptionManager
             }
             catch (Exception ex)
             {
-                ex = ex.InnerGetLast();
                 if (isLog) 
                 { 
                     logger.Trace(ex, ex.Message);
@@ -86,7 +85,6 @@ namespace ExceptionManager
             }
             catch (Exception ex)
             {
-                ex = ex.InnerGetLast();
                 catchFunc(ex);
                 return false;
             }
@@ -121,14 +119,13 @@ namespace ExceptionManager
             }
             catch (Exception ex)
             {
-                ex = ex.InnerGetLast();
-                logger.ErrorFunc(func, ex, msg);
+                ex.Log();
+                //logger.ErrorFunc(func, ex, msg);
                 return false;
             }
         }
         public static void Log(this Exception ex, string msg = null)
         {
-            ex = ex.InnerGetLast();
             string result = ex.Message.prefix(msg);
             logger.ErrorStack(ex, result);
         }
@@ -202,20 +199,17 @@ namespace ExceptionManager
         }
         public static void Throw(string msg)
         {
-            logger.Error("throw " + msg);
             throw new CustException(msg);
         }
 
         public static void Throw(this Exception ex, string msg=null)
         {
-            ex = ex.InnerGetLast();
             msg = $"throw {ex.Message.prefix(msg)}";
-            logger.ErrorStack(ex, msg);
+            //logger.ErrorStack(ex, msg);
             throw new Exception(msg, ex);
         }
         public static void Show(this Exception ex, string msg = null)
         {
-            ex = ex.InnerGetLast();
             string resultMsg = msg;
             resultMsg = ex.Message.prefix(msg, 2);
             logger.ErrorStack(ex, resultMsg);
@@ -223,13 +217,12 @@ namespace ExceptionManager
         }
         public static void Show(this Exception ex, Action func)
         {
-            ex = ex.InnerGetLast();
-            logger.ErrorFunc(func, ex);
+            //logger.ErrorFunc(func, ex);
+            ex.Log();
             Show(ex.Message);
         }
         public static void Show(this Exception ex, Action<Exception> func, string msg = null)
         {
-            ex = ex.InnerGetLast();
             string result = ex.Message.prefix(msg);
             func(ex);
             Show(result);
@@ -247,7 +240,6 @@ namespace ExceptionManager
         }
         public static string Info(this Exception ex)
         {
-            ex = ex.InnerGetLast();
             return $"{ex.Message}{n}{n}{ex.GetType().FullName}:{n}{ex.ReversedStackTrace()}";
         }
         public static void timeout(Action func)
@@ -290,7 +282,6 @@ namespace ExceptionManager
         }
         private static void ErrorFunc(this Logger thisLogger, Action func, Exception ex, string msg = null)
         {
-            ex = ex.InnerGetLast();
             try
             {
                 string methodName = $"{func.Method.DeclaringType.FullName}.{func.Method.Name}";
@@ -309,13 +300,11 @@ namespace ExceptionManager
             }
             catch (Exception ex2)
             {
-                ex2 = ex2.InnerGetLast();
                 ex2.Log("Ошибка в Ex.Error()");
             }
         }
         private static void ErrorStack(this Logger thisLogger, Exception ex, string msg = null)
         {
-            ex = ex.InnerGetLast();
             try
             {
                 var cleanStackTrace = StackTraceNoSystem(ex.StackTraceInner());
@@ -327,14 +316,13 @@ namespace ExceptionManager
                 }
                 LogManager.Configuration.Variables["func"] = GetFirstLine(cleanStackTrace);
                 LogManager.Configuration.Variables["myStackTrace"] = cleanStackTrace;
-                logger.Error(ex, msg ?? ex.Message);
-                Debug.WriteLine(msg ?? ex.Message);                
+                logger.Error(ex, (msg ?? ex.Message).prefix(cleanStackTrace));
+                Debug.WriteLine((msg ?? ex.Message).prefix(cleanStackTrace));                
                 LogManager.Configuration.Variables["func"] = defaultFunc;
                 LogManager.Configuration.Variables["myStackTrace"] = string.Empty;
             }
             catch (Exception ex2)
             {
-                ex2 = ex2.InnerGetLast();
                 string str = "Ошибка в Ex.ErrorStack()";
                 Debug.WriteLine($"{str} {ex2.Message}");
                 logger.Error(ex2, str);
@@ -343,12 +331,11 @@ namespace ExceptionManager
 
         private static string ReversedStackTrace(this Exception ex)
         {
-            ex = ex.InnerGetLast();
             return StackTraceNoSystem(ex.StackTraceInner(), true);
         }
         private static string StackTraceInner(this Exception ex)
         {
-            return ex.StackTrace ?? ex.InnerException?.StackTraceInner() ?? string.Empty;
+            return ex?.InnerException?.StackTraceInner() ?? ex.StackTrace ?? string.Empty;
         }
         private static string StackTraceNoSystem(string text, bool isReverse = false)
         {
@@ -380,7 +367,7 @@ namespace ExceptionManager
             { return string.Empty; }
             var parts = text.Split(new char[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
             StringBuilder result = new StringBuilder();
-            var regex = new Regex(@"Ex.");
+            var regex = new Regex(@"ExceptionManager.Ex");
             var partsToCheck = parts;
             foreach (var tab in partsToCheck)
             {
@@ -401,7 +388,7 @@ namespace ExceptionManager
             var exclude = new[]
             { new Regex(@"Server stack trace")
         , new Regex(@"\bSystem.")
-        , new Regex(@"\bEx.")
+        , new Regex(@"\bExceptionManager.Ex")
         };
             try
             {
@@ -426,6 +413,7 @@ namespace ExceptionManager
                             result = result.Replace('<', '(');
                             result = result.Replace('>', ')');
                             result = Regex.Replace(result, @"[:?*]", "");
+                            break;
                         }
                     }
                 }
