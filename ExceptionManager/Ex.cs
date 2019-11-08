@@ -6,9 +6,7 @@ using System.Threading.Tasks;
 using NLog;
 using System.Windows;
 using System.Diagnostics;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Threading;
 using System.Threading.Tasks.Schedulers;
 using System.Reflection;
@@ -70,7 +68,12 @@ namespace ExceptionManager
             }
             catch (Exception ex)
             {
-                if (isLog) { logger.Trace(ex, ex.Message); }
+                ex = ex.InnerGetLast();
+                if (isLog) 
+                { 
+                    logger.Trace(ex, ex.Message);
+                    Trace.WriteLine($"{ex.Message}");
+                }
                 return false;
             }
         }
@@ -83,6 +86,7 @@ namespace ExceptionManager
             }
             catch (Exception ex)
             {
+                ex = ex.InnerGetLast();
                 catchFunc(ex);
                 return false;
             }
@@ -106,16 +110,7 @@ namespace ExceptionManager
         }
         public static bool TryLog(Action func)
         {
-            try
-            {
-                func();
-                return true;
-            }
-            catch (Exception ex)
-            {
-                logger.Error(func, ex);
-                return false;
-            }
+            return TryLog(null, func);
         }
         public static bool TryLog(string msg, Action func)
         {
@@ -126,18 +121,22 @@ namespace ExceptionManager
             }
             catch (Exception ex)
             {
-                logger.Error(func, ex, msg);
+                ex = ex.InnerGetLast();
+                logger.ErrorFunc(func, ex, msg);
                 return false;
             }
         }
         public static void Log(this Exception ex, string msg = null)
         {
+            ex = ex.InnerGetLast();
             string result = ex.Message.prefix(msg);
             logger.ErrorStack(ex, result);
         }
+
         public static void Log(string msg)
         {
             logger.Trace(msg);
+            Trace.WriteLine(msg);
         }
         public static bool Catch(Action func, string msg = null)
         {
@@ -188,15 +187,7 @@ namespace ExceptionManager
         }
         public static void Throw(Action func)
         {
-            try
-            {
-                func();
-            }
-            catch (Exception ex)
-            {
-                logger.Error(func, ex, "throw " + ex.Message);
-                throw;
-            }
+            Throw(null, func);
         }
         public static void Throw(string msg, Action func)
         {
@@ -206,8 +197,7 @@ namespace ExceptionManager
             }
             catch (Exception ex)
             {
-                logger.Error(func, ex, "throw " + msg + n + ex.Message);
-                throw new Exception(msg + n + ex.Message + n, ex);
+                ex.Throw(msg);
             }
         }
         public static void Throw(string msg)
@@ -216,33 +206,30 @@ namespace ExceptionManager
             throw new CustException(msg);
         }
 
-        public static void Throw(this Exception ex)
+        public static void Throw(this Exception ex, string msg=null)
         {
-            logger.ErrorStack(ex, "throw " + ex.Message);
-            throw ex;
-        }
-        public static void Throw(this Exception ex, string msg)
-        {
-            logger.ErrorStack(ex, "throw " + msg + n + ex.Message);
-            throw new CustException(msg + n + ex.Message + n, ex);
+            ex = ex.InnerGetLast();
+            msg = $"throw {ex.Message.prefix(msg)}";
+            logger.ErrorStack(ex, msg);
+            throw new Exception(msg, ex);
         }
         public static void Show(this Exception ex, string msg = null)
         {
+            ex = ex.InnerGetLast();
             string resultMsg = msg;
-            Try(() =>
-            {
-                resultMsg = ex.Message.prefix(msg, 2);
-                logger.ErrorStack(ex, resultMsg);
-            });
+            resultMsg = ex.Message.prefix(msg, 2);
+            logger.ErrorStack(ex, resultMsg);
             Show(resultMsg);
         }
         public static void Show(this Exception ex, Action func)
         {
-            logger.Error(func, ex);
+            ex = ex.InnerGetLast();
+            logger.ErrorFunc(func, ex);
             Show(ex.Message);
         }
         public static void Show(this Exception ex, Action<Exception> func, string msg = null)
         {
+            ex = ex.InnerGetLast();
             string result = ex.Message.prefix(msg);
             func(ex);
             Show(result);
@@ -260,6 +247,7 @@ namespace ExceptionManager
         }
         public static string Info(this Exception ex)
         {
+            ex = ex.InnerGetLast();
             return $"{ex.Message}{n}{n}{ex.GetType().FullName}:{n}{ex.ReversedStackTrace()}";
         }
         public static void timeout(Action func)
@@ -292,8 +280,17 @@ namespace ExceptionManager
         #endregion
 
         #region private Methods
-        private static void Error(this Logger thisLogger, Action func, Exception ex, string msg = null)
+        public static Exception InnerGetLast(this Exception ex)
         {
+            while (ex?.InnerException != null)
+            {
+                ex = ex?.InnerException ?? ex;
+            }
+            return ex;
+        }
+        private static void ErrorFunc(this Logger thisLogger, Action func, Exception ex, string msg = null)
+        {
+            ex = ex.InnerGetLast();
             try
             {
                 string methodName = $"{func.Method.DeclaringType.FullName}.{func.Method.Name}";
@@ -306,16 +303,19 @@ namespace ExceptionManager
                 LogManager.Configuration.Variables["func"] = methodName;
                 LogManager.Configuration.Variables["myStackTrace"] = StackTraceNoSystem(Environment.StackTrace);
                 logger.Error(ex, msg ?? ex.Message);
+                Debug.WriteLine(msg ?? ex.Message);
                 LogManager.Configuration.Variables["func"] = defaultFunc;
                 LogManager.Configuration.Variables["myStackTrace"] = string.Empty;
             }
             catch (Exception ex2)
             {
+                ex2 = ex2.InnerGetLast();
                 ex2.Log("Ошибка в Ex.Error()");
             }
         }
         private static void ErrorStack(this Logger thisLogger, Exception ex, string msg = null)
         {
+            ex = ex.InnerGetLast();
             try
             {
                 var cleanStackTrace = StackTraceNoSystem(ex.StackTraceInner());
@@ -328,38 +328,22 @@ namespace ExceptionManager
                 LogManager.Configuration.Variables["func"] = GetFirstLine(cleanStackTrace);
                 LogManager.Configuration.Variables["myStackTrace"] = cleanStackTrace;
                 logger.Error(ex, msg ?? ex.Message);
+                Debug.WriteLine(msg ?? ex.Message);                
                 LogManager.Configuration.Variables["func"] = defaultFunc;
                 LogManager.Configuration.Variables["myStackTrace"] = string.Empty;
             }
             catch (Exception ex2)
             {
-                ex2.Log("Ошибка в Ex.ErrorStack()");
+                ex2 = ex2.InnerGetLast();
+                string str = "Ошибка в Ex.ErrorStack()";
+                Debug.WriteLine($"{str} {ex2.Message}");
+                logger.Error(ex2, str);
             }
         }
-        private static void LogDebug(this Exception ex, string msg = null)
-        {
-            try
-            {
-                var cleanStackTrace = StackTraceNoSystem(ex.StackTraceInner());
-                cleanStackTrace = StackTraceNoEx(cleanStackTrace);
-                if (LogManager.Configuration == null)
-                {
-                    logger.Error(ex, msg ?? ex.Message);
-                    return;
-                }
-                LogManager.Configuration.Variables["func"] = GetFirstLine(cleanStackTrace);
-                LogManager.Configuration.Variables["myStackTrace"] = cleanStackTrace;
-                logger.Debug(ex, ex.Message.prefix(msg));
-                LogManager.Configuration.Variables["func"] = defaultFunc;
-                LogManager.Configuration.Variables["myStackTrace"] = string.Empty;
-            }
-            catch (Exception ex2)
-            {
-                ex2.Log("Ошибка в Ex.LogDebug()");
-            }
-        }
+
         private static string ReversedStackTrace(this Exception ex)
         {
+            ex = ex.InnerGetLast();
             return StackTraceNoSystem(ex.StackTraceInner(), true);
         }
         private static string StackTraceInner(this Exception ex)
@@ -452,7 +436,7 @@ namespace ExceptionManager
         }
         #endregion
 
-        #region this extensions
+        #region txt extensions
         public static string prefix(this String mainMsg, string prefixMsg, int countSeparators = 1)
         {
             string separator = "";
