@@ -202,10 +202,15 @@ namespace ExceptionManager
             throw new CustException(msg);
         }
 
+        public static void Throw<T>(string msg) where T : Exception, new()
+        {
+            var ex = Activator.CreateInstance(typeof(T), msg) as T;
+            throw ex;
+        }
+
         public static void Throw(this Exception ex, string msg=null)
         {
             msg = $"throw {ex.Message.prefix(msg)}";
-            //logger.ErrorStack(ex, msg);
             throw new Exception(msg, ex);
         }
         public static void Show(this Exception ex, string msg = null)
@@ -240,7 +245,9 @@ namespace ExceptionManager
         }
         public static string Info(this Exception ex)
         {
-            return $"{ex.Message}{n}{n}{ex.GetType().FullName}:{n}{ex.ReversedStackTrace()}";
+            var cleanStackTrace = StackTraceNoSystem(ex.StackTraceInner());
+            cleanStackTrace = StackTraceNoEx(cleanStackTrace);
+            return $"{ex.Message}\n\n{cleanStackTrace}";
         }
         public static void timeout(Action func)
         {
@@ -436,7 +443,7 @@ namespace ExceptionManager
                 separator = " ";
             return (string.IsNullOrEmpty(prefixMsg)) ? mainMsg : prefixMsg + separator + mainMsg;
         }
-        public static void RunParallel(this Task task) { }
+        public static void RunAsync(this Task task) { }
         public static string trySubstring(this String inc, int startIndex, int length)
         {
             try
