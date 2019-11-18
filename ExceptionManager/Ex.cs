@@ -135,6 +135,16 @@ namespace ExceptionManager
             logger.Trace(msg);
             Trace.WriteLine(msg);
         }
+        public static void Error(string msg)
+        {
+            logger.Error(msg);
+            Debug.WriteLine(msg);
+        }
+        public static void Info(string msg)
+        {
+            logger.Info(msg);
+            Debug.WriteLine(msg);
+        }
         public static bool Catch(Action func, string msg = null)
         {
             try
