@@ -220,7 +220,7 @@ namespace ExceptionManager
 
         public static void Throw(this Exception ex, string msg=null)
         {
-            msg = $"throw {ex.Message.prefix(msg)}";
+            msg = $"{ex.Message.prefix(msg)}";
             throw new Exception(msg, ex);
         }
         public static void Show(this Exception ex, string msg = null)
