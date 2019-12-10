@@ -119,7 +119,7 @@ namespace ExceptionManager
             }
             catch (Exception ex)
             {
-                ex.Log();
+                ex.Log(msg);
                 //logger.ErrorFunc(func, ex, msg);
                 return false;
             }
