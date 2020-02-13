@@ -8,7 +8,6 @@ using System.Windows;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Threading;
-using System.Threading.Tasks.Schedulers;
 using System.Reflection;
 using System.Security;
 using System.Runtime.Serialization;
@@ -21,8 +20,7 @@ namespace ExceptionManager
         private static Logger logger = LogManager.GetCurrentClassLogger();
         private static readonly string n = Environment.NewLine;
         private static readonly string defaultFunc = "${callsite:cleanNamesOfAnonymousDelegates=true:cleanNamesOfAsyncContinuations=true}";
-        public static readonly TaskFactory LongTask = new TaskFactory(TaskCreationOptions.LongRunning, TaskContinuationOptions.None);
-        private static readonly TaskScheduler IOTask = new IOTaskScheduler();
+        public static readonly TaskFactory LongTask = new TaskFactory(TaskCreationOptions.LongRunning, TaskContinuationOptions.None);        
         public static readonly Task TaskEmpty = Task.Run(() => { });
         #endregion
 
@@ -39,14 +37,6 @@ namespace ExceptionManager
                 //, IOTask
                 );
         }
-        public static Task<T> LongSyncRun<T>(Func<T> func)
-        {
-            return Task.Factory.StartNew(func
-                , new CancellationToken()
-                , TaskCreationOptions.LongRunning
-                , IOTask
-                );
-        }
         public static async Task RunUIAwait(TaskScheduler context, Action func)
         {
             await Task.Factory.StartNew(func, new CancellationToken(), TaskCreationOptions.None, context);
@@ -55,10 +45,18 @@ namespace ExceptionManager
         {
             return Task.Factory.StartNew(func, new CancellationToken(), TaskCreationOptions.None, context);
         }
+
+        #region Try
         public static bool Try(Action func)
         {
             return Try(true, func);
         }
+        /// <summary>
+        /// Logging as Trace
+        /// </summary>
+        /// <param name="isLog"></param>
+        /// <param name="func"></param>
+        /// <returns></returns>
         public static bool Try(bool isLog, Action func)
         {
             try
@@ -110,6 +108,12 @@ namespace ExceptionManager
         {
             return TryLog(null, func);
         }
+        /// <summary>
+        /// Logging as Error (exception)
+        /// </summary>
+        /// <param name="msg"></param>
+        /// <param name="func"></param>
+        /// <returns></returns>
         public static bool TryLog(string msg, Action func)
         {
             try
@@ -124,12 +128,14 @@ namespace ExceptionManager
                 return false;
             }
         }
+        #endregion
+
+        #region Log
         public static void Log(this Exception ex, string msg = null)
         {
             string result = ex.Message.prefix(msg);
             logger.ErrorStack(ex, result);
         }
-
         public static void Log(string msg)
         {
             logger.Trace(msg);
@@ -145,6 +151,28 @@ namespace ExceptionManager
             logger.Info(msg);
             Debug.WriteLine(msg);
         }
+        #endregion
+
+        #region Catch
+        public static bool Catch(Action func, Action catchFunc)
+        {
+            try
+            {
+                func();
+                return true;
+            }
+            catch
+            {
+                catchFunc();
+                return false;
+            }
+        }
+        /// <summary>
+        /// Shows messagebox on Catch, if no catchFunc
+        /// </summary>
+        /// <param name="func"></param>
+        /// <param name="msg"></param>
+        /// <returns></returns>
         public static bool Catch(Action func, string msg = null)
         {
             try
@@ -158,6 +186,12 @@ namespace ExceptionManager
                 return false;
             }
         }
+        /// <summary>
+        /// Shows messagebox on Catch, if no catchFunc
+        /// </summary>
+        /// <param name="msg"></param>
+        /// <param name="func"></param>
+        /// <returns></returns>
         public static bool Catch(string msg, Action func)
         {
             return Catch(func, msg);
@@ -192,6 +226,9 @@ namespace ExceptionManager
             Task task = Task.Run(() => func);
             return await Catch(task);
         }
+        #endregion
+
+        #region Throw
         public static void Throw(Action func)
         {
             Throw(null, func);
@@ -211,18 +248,19 @@ namespace ExceptionManager
         {
             throw new CustException(msg);
         }
-
         public static void Throw<T>(string msg) where T : Exception, new()
         {
             var ex = Activator.CreateInstance(typeof(T), msg) as T;
             throw ex;
         }
-
         public static void Throw(this Exception ex, string msg=null)
         {
             msg = $"{ex.Message.prefix(msg)}";
             throw new Exception(msg, ex);
         }
+        #endregion
+
+        #region Show
         public static void Show(this Exception ex, string msg = null)
         {
             string resultMsg = msg;
@@ -253,6 +291,8 @@ namespace ExceptionManager
                 MessageBox.Show(msg.space(), "", buttons, icon);
             }
         }
+        #endregion
+
         public static string Info(this Exception ex)
         {
             var cleanStackTrace = StackTraceNoSystem(ex.StackTraceInner());
