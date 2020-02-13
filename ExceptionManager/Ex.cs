@@ -74,6 +74,19 @@ namespace ExceptionManager
                 return false;
             }
         }
+        public static bool Try(string msg, Action func)
+        {
+            try
+            {
+                func();
+                return true;
+            }
+            catch
+            {
+                Ex.Log(msg);
+                return false;
+            }
+        }
         public static bool Try(Action tryFunc, Action<Exception> catchFunc)
         {
             try
@@ -87,12 +100,33 @@ namespace ExceptionManager
                 return false;
             }
         }
-        public static async Task<bool> TryAsync(Action func, string msg = null)
+        public static bool Try(Action<Exception> catchFunc, Action tryFunc)
+        {
+            return Try(tryFunc, catchFunc);
+        }
+        public static async Task<bool> TryAsync(Action func)
         {
             Task task = Task.Run(() => func);
             return await Try(task);
         }
-        public static async Task<bool> Try(Task func, string msg = null)
+        public static async Task<bool> Try(Task func, Action<Exception> catchFunc)
+        {
+            try
+            {
+                await func;
+                return true;
+            }
+            catch(Exception ex)
+            {
+                catchFunc(ex);
+                return false;
+            }
+        }
+        public static async Task<bool> Try(Action<Exception> catchFunc, Task func)
+        {
+            return await Try(func, catchFunc);
+        }
+        public static async Task<bool> Try(Task func)
         {
             try
             {
